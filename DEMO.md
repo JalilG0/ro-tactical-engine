@@ -1,8 +1,10 @@
 # Demo Scenario
 
-A ready-to-run walkthrough for presenting Ro: four assets report in, one
-target intake event arrives, and the engine returns a ranked, explained
-recommendation. Use this to drive a live demo instead of reading code.
+A walkthrough for presenting Ro: four assets report in, one target intake
+event arrives, and the engine returns a ranked, explained recommendation.
+Section 3 shows the exact expected output, so this doc can be read and
+understood **without running anything** — sections 0–2 are only needed if
+you want to reproduce it live.
 
 ## 0. Start the stack
 
@@ -115,7 +117,74 @@ curl -s -X POST http://localhost:8080/api/v1/recommendations/calculate \
   }' | python3 -m json.tool
 ```
 
-## 3. What to expect — and what to say
+## 3. Expected output
+
+Given the four heartbeats and the target intake above, the engine returns:
+
+```json
+{
+  "recommendationId": "<generated-uuid>",
+  "targetId": "TARGET-ALPHA",
+  "timestamp": 1752739200000,
+  "xaiExplanation": "Hedef TARGET-ALPHA (Tehdit Seviyesi: 6/10) için taktik değerlendirme tamamlandı. Aktif Elektronik Harp (EW) tehdidi tespit edildi; rota, tespit edilen karıştırma (jammer) bölgesini bypass edecek şekilde uzatıldı. Hedefin hareketli (MOVING) olması sebebiyle anlık takip yapabilen lazer güdümlü mühimmatlar (MAM-L, MAM-C, BOZOK) önceliklendirilmiş; sabit koordinata taarruz eden GPS/INS güdümlü sistemlere (TOLUN, SOM) düşük öncelik verilmiştir. En yüksek öncelikli öneri: TOLUN modeli (1 adet müsait varlık). Overmatch Doktrini gereği, seçilen mühimmat gücü hedef tehdit seviyesini tek başına aşmaktadır. 1 varlık aşağıdaki nedenlerle değerlendirme dışı bırakıldı: A-104 (Bakım Gerekiyor).",
+  "rankedModelGroups": [
+    {
+      "modelName": "TOLUN",
+      "totalAvailableCount": 1,
+      "subClusters": [
+        {
+          "location": { "lat": 39.895, "lng": 32.845, "alt": 1500.0 },
+          "status": "FREE",
+          "assetIds": ["A-102"],
+          "maxSelectable": 1,
+          "isBatchSelectable": false
+        }
+      ],
+      "tieBreakerApplied": false
+    },
+    {
+      "modelName": "BOZOK",
+      "totalAvailableCount": 1,
+      "subClusters": [
+        {
+          "location": { "lat": 39.905, "lng": 32.855, "alt": 1200.0 },
+          "status": "FREE",
+          "assetIds": ["A-101"],
+          "maxSelectable": 1,
+          "isBatchSelectable": false
+        }
+      ],
+      "tieBreakerApplied": false
+    },
+    {
+      "modelName": "MAM_C",
+      "totalAvailableCount": 1,
+      "subClusters": [
+        {
+          "location": { "lat": 39.91, "lng": 32.86, "alt": 1100.0 },
+          "status": "FREE",
+          "assetIds": ["A-103"],
+          "maxSelectable": 1,
+          "isBatchSelectable": false
+        }
+      ],
+      "tieBreakerApplied": false
+    }
+  ]
+}
+```
+
+(`recommendationId` and `timestamp` are generated at call time, so those two
+fields will differ on every real run — everything else is deterministic and
+reproducible for these inputs, which is the point of the tie-breaking rule
+in [SYSTEM_ARCHITECTURE.md](SYSTEM_ARCHITECTURE.md).)
+
+Note what's *absent*: `A-104` doesn't appear in `rankedModelGroups` at all —
+it was filtered out before scoring even ran. Its exclusion is only visible
+in the `xaiExplanation` text, which is intentional: the exclusion engine and
+the explanation generator are decoupled (see the pipeline diagram).
+
+## 4. What to expect — and what to say
 
 The response ranks three model groups. Walk through it in this order:
 
@@ -146,7 +215,7 @@ The response ranks three model groups. Walk through it in this order:
    rejection** (`409`/error response after 10s) — a good way to show the
    validity-gate rule from `SYSTEM_ARCHITECTURE.md` live.
 
-## 4. Cross-reference
+## 5. Cross-reference
 
 - Full pipeline explanation: [SYSTEM_ARCHITECTURE.md](SYSTEM_ARCHITECTURE.md)
 - Interactive API exploration: `http://localhost:8080/swagger-ui.html`

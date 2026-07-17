@@ -1,5 +1,7 @@
 # Ro — Tactical Decision Support & Triage Engine
 
+[![CI](https://github.com/JalilG0/ro-tactical-engine/actions/workflows/ci.yml/badge.svg)](https://github.com/JalilG0/ro-tactical-engine/actions/workflows/ci.yml)
+
 Stateless, reactive REST service that computes ranked tactical recommendation
 payloads from real-time telemetry and target intake events. Built as a
 university graduation project.
