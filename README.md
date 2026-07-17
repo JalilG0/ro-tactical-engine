@@ -86,6 +86,12 @@ http://localhost:8080/swagger-ui.html
 | POST   | `/api/v1/recommendations/calculate` | Submit target intake data, receive a ranked recommendation payload |
 | POST   | `/api/v1/telemetry/heartbeat`       | Ingest a telemetry heartbeat for an asset      |
 
+## Demo
+
+A ready-to-run walkthrough (fleet check-in → target intake → ranked,
+explained recommendation) with copy-pasteable `curl` commands lives in
+[DEMO.md](DEMO.md).
+
 ## Status
 
 This project is under active development as part of an academic capstone.
