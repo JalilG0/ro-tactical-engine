@@ -47,25 +47,39 @@ criteria, deterministic tie-breaking).
 
 ## Getting Started
 
-### Prerequisites
-- Java 21+
-- Maven (or use the included `mvnw` wrapper)
-- Docker & Docker Compose (for PostgreSQL and Redis)
+### Option A — Docker only (recommended, no Java/Maven needed)
 
-### Run locally
+The only prerequisite is Docker & Docker Compose. This builds the app image
+and starts it alongside PostgreSQL and Redis in one step:
 
 ```bash
-# 1. Start PostgreSQL and Redis
-docker-compose up -d
+docker-compose up -d --build
+```
 
-# 2. Run the application
+That's it — the service is running at `http://localhost:8080`. Check
+progress with `docker-compose logs -f app`, stop everything with
+`docker-compose down`.
+
+### Option B — Local dev loop (app on host, only DB/Redis in Docker)
+
+Use this if you're actively editing code and want fast restarts.
+
+**Prerequisites:** Java 21+, the included `mvnw` wrapper (no separate Maven
+install needed), Docker & Docker Compose.
+
+```bash
+# 1. Start only PostgreSQL and Redis
+docker-compose up -d postgres redis
+
+# 2. Run the application on the host
 ./mvnw spring-boot:run
 ```
 
-The service starts on `http://localhost:8080` by default. Database and
-Redis connection details can be overridden via environment variables
-(`DB_URL`, `DB_USERNAME`, `DB_PASSWORD`, `REDIS_HOST`, `REDIS_PORT`) — see
-[application.yml](src/main/resources/application.yml).
+Don't run both options at once — each binds port 8080 and they'll conflict.
+
+Database and Redis connection details can be overridden via environment
+variables (`DB_URL`, `DB_USERNAME`, `DB_PASSWORD`, `REDIS_HOST`,
+`REDIS_PORT`) — see [application.yml](src/main/resources/application.yml).
 
 ### API Documentation
 

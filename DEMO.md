@@ -9,7 +9,7 @@ you want to reproduce it live.
 ## 0. Start the stack
 
 ```bash
-docker-compose up -d
+docker-compose up -d --build
 ```
 
 Wait for `http://localhost:8080/swagger-ui.html` to respond, or watch
