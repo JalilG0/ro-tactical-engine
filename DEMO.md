@@ -2,8 +2,8 @@
 
 A walkthrough for presenting Ro: four assets report in, one target intake
 event arrives, and the engine returns a ranked, explained recommendation.
-Section 3 shows the exact expected output, so this doc can be read and
-understood **without running anything** — sections 0–2 are only needed if
+Section 4 shows the exact expected output, so this doc can be read and
+understood **without running anything** — sections 0–3 are only needed if
 you want to reproduce it live.
 
 ## 0. Start the stack
@@ -15,7 +15,20 @@ docker-compose up -d --build
 Wait for `http://localhost:8080/swagger-ui.html` to respond, or watch
 `docker-compose logs -f app`.
 
-## 1. Fleet check-in (telemetry heartbeats)
+## 1. Log in as the GCS operator
+
+Every endpoint below except this one requires a JWT Bearer token. Log in
+with the seeded demo credentials (see `docker-compose.yml`) and capture the
+token:
+
+```bash
+TOKEN=$(curl -s -X POST http://localhost:8080/api/v1/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"username": "operator", "password": "changeme"}' \
+  | python3 -c 'import json,sys; print(json.load(sys.stdin)["accessToken"])')
+```
+
+## 2. Fleet check-in (telemetry heartbeats)
 
 Four assets report their status. `TS` is computed fresh each call because
 the engine rejects any payload older than 10 seconds.
@@ -23,6 +36,7 @@ the engine rejects any payload older than 10 seconds.
 ```bash
 TS=$(( $(date +%s) * 1000 ))
 curl -s -X POST http://localhost:8080/api/v1/telemetry/heartbeat \
+  -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
     "assetId": "A-101",
@@ -39,6 +53,7 @@ curl -s -X POST http://localhost:8080/api/v1/telemetry/heartbeat \
 ```bash
 TS=$(( $(date +%s) * 1000 ))
 curl -s -X POST http://localhost:8080/api/v1/telemetry/heartbeat \
+  -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
     "assetId": "A-102",
@@ -55,6 +70,7 @@ curl -s -X POST http://localhost:8080/api/v1/telemetry/heartbeat \
 ```bash
 TS=$(( $(date +%s) * 1000 ))
 curl -s -X POST http://localhost:8080/api/v1/telemetry/heartbeat \
+  -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
     "assetId": "A-103",
@@ -74,6 +90,7 @@ engine at work:
 ```bash
 TS=$(( $(date +%s) * 1000 ))
 curl -s -X POST http://localhost:8080/api/v1/telemetry/heartbeat \
+  -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
     "assetId": "A-104",
@@ -87,13 +104,14 @@ curl -s -X POST http://localhost:8080/api/v1/telemetry/heartbeat \
   }'
 ```
 
-## 2. Target intake
+## 3. Target intake
 
 A moving target, threat level 6, under active EW jamming:
 
 ```bash
 TS=$(( $(date +%s) * 1000 ))
 curl -s -X POST http://localhost:8080/api/v1/recommendations/calculate \
+  -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
     "eventId": "evt-intake-alpha-001",
@@ -117,7 +135,7 @@ curl -s -X POST http://localhost:8080/api/v1/recommendations/calculate \
   }' | python3 -m json.tool
 ```
 
-## 3. Expected output
+## 4. Expected output
 
 Given the four heartbeats and the target intake above, the engine returns:
 
@@ -184,7 +202,7 @@ it was filtered out before scoring even ran. Its exclusion is only visible
 in the `xaiExplanation` text, which is intentional: the exclusion engine and
 the explanation generator are decoupled (see the pipeline diagram).
 
-## 4. What to expect — and what to say
+## 5. What to expect — and what to say
 
 The response ranks three model groups. Walk through it in this order:
 
@@ -206,16 +224,21 @@ The response ranks three model groups. Walk through it in this order:
    justification, which is the "explainability" contribution of the
    project: every ranking decision is traceable to a stated reason, not a
    black box.
-6. Optionally, re-run step 2 within 30 seconds and point out the response
-   is identical — then explain the **Shadow Lock**: `A-102` was reserved in
-   Redis for 30 seconds after the first call precisely so a second,
-   concurrent operator request can't be handed the same asset.
-7. Re-run step 2 a third time with the *same* `timestamp` you used
-   originally (i.e. reuse an old request) to trigger the **stale-data
-   rejection** (`409`/error response after 10s) — a good way to show the
-   validity-gate rule from `SYSTEM_ARCHITECTURE.md` live.
+6. Optionally, re-run step 3 with a *different* `eventId` (the original one
+   is still inside its 10s idempotency window) 15–20 seconds after the
+   first call, and point out that `A-102` (TOLUN) no longer appears —
+   `BOZOK` (A-101) is now ranked first instead. This is the **Shadow
+   Lock**: `A-102` was reserved in Redis for 30 seconds after the first
+   call precisely so a second, concurrent operator request can't be
+   handed the same asset.
+7. Re-run step 3 immediately with the exact same `eventId` and `timestamp`
+   you used originally (i.e. reuse an old request verbatim) to trigger the
+   **duplicate-event rejection** (`409`), or wait past the 10s idempotency
+   window and reuse an old `timestamp` to trigger the **stale-data
+   rejection** (`422`) — both are good ways to show the validity-gate rule
+   from `SYSTEM_ARCHITECTURE.md` live.
 
-## 5. Cross-reference
+## 6. Cross-reference
 
 - Full pipeline explanation: [SYSTEM_ARCHITECTURE.md](SYSTEM_ARCHITECTURE.md)
 - Interactive API exploration: `http://localhost:8080/swagger-ui.html`

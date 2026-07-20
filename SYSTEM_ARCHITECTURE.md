@@ -10,14 +10,32 @@ This system is **NOT** a Command & Control (C2) or flight control system. It is 
 - `domain` — DTOs, Models, Enums
 - `repository` — JPA (audit history) & Redis (live fleet cache)
 - `engine` — Exclusion, Scoring, Geo, XAI Explanation
+- `security` — JWT issuance/validation and the Spring Security filter chain
 - `controller` — REST Gateway
 - `service` — Orchestrates the end-to-end pipeline
+
+## Authentication
+
+Every `/api/v1/**` endpoint except `/api/v1/auth/login` requires a JWT
+Bearer token, enforced by a stateless Spring Security filter chain
+(`security/SecurityConfig`). A `JwtAuthenticationFilter` validates the
+token and populates the security context before the request reaches
+`RecommendationController`; missing/invalid tokens are rejected with a
+`ProblemDetail` 401 (`security/RestAuthenticationEntryPoint`), consistent
+with the error format used elsewhere in this API.
+
+There is no user-management subsystem — a single GCS-operator account is
+seeded from `OPERATOR_USERNAME`/`OPERATOR_PASSWORD` (`security/SecurityConfig`),
+and tokens are signed with `JWT_SECRET` (`security/JwtService`). This is
+sufficient to gate a capstone demo service; it is not a production identity
+provider.
 
 ## Request Flow
 
 ```mermaid
 sequenceDiagram
     participant GCS as GCS Operator
+    participant AUTH as AuthController
     participant API as RecommendationController
     participant SVC as RecommendationService
     participant CACHE as FleetStatusCacheRepository (Redis)
@@ -26,10 +44,13 @@ sequenceDiagram
     participant XAI as XaiExplanationGenerator
     participant DB as RecommendationHistoryRepository (PostgreSQL)
 
-    GCS->>API: POST /telemetry/heartbeat
+    GCS->>AUTH: POST /auth/login (username, password)
+    AUTH-->>GCS: 200 OK (JWT access token)
+
+    GCS->>API: POST /telemetry/heartbeat (Bearer token)
     API->>CACHE: saveTelemetry(assetId, status, fuel, location...)
 
-    GCS->>API: POST /recommendations/calculate (TargetIntakeDTO)
+    GCS->>API: POST /recommendations/calculate (Bearer token, TargetIntakeDTO)
     API->>SVC: calculateRecommendation(intake)
     SVC->>SVC: reject if stale (>10s old) or duplicate eventId
     SVC->>CACHE: getActiveFreePool()
@@ -125,8 +146,11 @@ trade-off, and the overmatch justification in plain language.
 | Test class | What it verifies |
 |------------|-------------------|
 | `ExclusionEngineTest` | Each exclusion reason (maintenance, manual override, zero munitions, bingo fuel) fires independently and correctly |
+| `TacticalScoringEngineTest` | Swarm Allocation only reports overmatch when the paired munition power actually exceeds the threat level |
 | `RecommendationServiceTest` | End-to-end orchestration: stale/duplicate rejection, pipeline wiring, audit persistence, shadow-lock application |
 | `RecommendationControllerTest` | HTTP layer — request validation, status codes, error mapping |
+| `AuthControllerTest` | Login endpoint — token issuance on valid credentials, 401 on invalid credentials |
+| `JwtSecurityIntegrationTest` | The real Spring Security filter chain — requests without/with an invalid/with a valid Bearer token |
 | `TargetIntakeDTOValidationTest` | Bean Validation constraints on inbound target intake payloads |
 | `TelemetryHeartbeatDTOValidationTest` | Bean Validation constraints on inbound telemetry payloads |
 | `JsonNodeConverterTest` | JPA attribute converter that persists the ranked payload as JSONB |

@@ -20,3 +20,14 @@ spring:
     redis:
       host: ${REDIS_HOST:localhost}
       port: ${REDIS_PORT:6379}
+
+app:
+  security:
+    jwt:
+      # Dev-only default; always override with JWT_SECRET in any shared/deployed environment.
+      secret: ${JWT_SECRET:dev-only-secret-key-change-me-before-any-real-deployment-32bytes}
+      expiration-ms: ${JWT_EXPIRATION_MS:3600000}
+    operator:
+      username: ${OPERATOR_USERNAME:operator}
+      # Dev-only default; always override with OPERATOR_PASSWORD in any shared/deployed environment.
+      password: ${OPERATOR_PASSWORD:changeme}

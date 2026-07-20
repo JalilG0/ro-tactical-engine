@@ -7,10 +7,14 @@ import com.mil.trdss.ro.domain.enums.AssetStatus;
 import com.mil.trdss.ro.domain.enums.MunitionType;
 import com.mil.trdss.ro.domain.enums.TargetMovementStatus;
 import com.mil.trdss.ro.domain.enums.WeatherCondition;
+import com.mil.trdss.ro.security.JwtAuthenticationFilter;
 import com.mil.trdss.ro.service.RecommendationService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
+import org.springframework.context.annotation.ComponentScan;
+import org.springframework.context.annotation.FilterType;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
@@ -25,7 +29,12 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-@WebMvcTest(RecommendationController.class)
+// Security filters are disabled and JwtAuthenticationFilter is excluded from this slice's
+// component scan: this test targets controller/validation/error-mapping behavior, not the
+// JWT auth layer (covered separately by AuthControllerTest and JwtSecurityIntegrationTest).
+@WebMvcTest(controllers = RecommendationController.class,
+        excludeFilters = @ComponentScan.Filter(type = FilterType.ASSIGNABLE_TYPE, classes = JwtAuthenticationFilter.class))
+@AutoConfigureMockMvc(addFilters = false)
 class RecommendationControllerTest {
 
     @Autowired

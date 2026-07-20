@@ -9,6 +9,9 @@ services:
       DB_PASSWORD: postgres
       REDIS_HOST: redis
       REDIS_PORT: 6379
+      JWT_SECRET: dev-only-secret-key-for-local-docker-compose-demo-rotate-before-any-real-use
+      OPERATOR_USERNAME: operator
+      OPERATOR_PASSWORD: changeme
     ports:
       - "8080:8080"
     depends_on:

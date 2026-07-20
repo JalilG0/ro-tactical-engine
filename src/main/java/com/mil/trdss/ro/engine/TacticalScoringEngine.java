@@ -114,7 +114,12 @@ public class TacticalScoringEngine {
 
         boolean singleAssetOvermatchAchieved = scoredAssets.stream()
                 .anyMatch(sa -> munitionPower(sa.asset().munition().currentType()) > targetIntake.target().threatLevel());
-        boolean isMediumTier = isMediumTier(scoredAssets.get(0).asset().munition().currentType());
+        MunitionType representativeType = scoredAssets.get(0).asset().munition().currentType();
+        boolean isMediumTier = isMediumTier(representativeType);
+        // Swarm Allocation only pays off if two of these assets combined actually
+        // overmatch the target; otherwise "swarm applied" would misreport an
+        // overmatch that was never mathematically achieved.
+        boolean pairedOvermatchAchieved = munitionPower(representativeType) * 2 > targetIntake.target().threatLevel();
 
         Map<String, List<ScoredAsset>> byLocationAndStatus = new LinkedHashMap<>();
         for (ScoredAsset scored : scoredAssets) {
@@ -128,8 +133,10 @@ public class TacticalScoringEngine {
             TelemetryHeartbeatDTO representative = cluster.get(0).asset();
             List<String> assetIds = cluster.stream().map(sa -> sa.asset().assetId()).toList();
 
-            // Swarm Allocation: pair up medium-tier assets when no single asset overmatches alone.
-            boolean swarmEligible = !singleAssetOvermatchAchieved && isMediumTier && cluster.size() >= 2;
+            // Swarm Allocation: pair up medium-tier assets when no single asset overmatches alone,
+            // but only if the pair's combined power actually overmatches the target.
+            boolean swarmEligible = !singleAssetOvermatchAchieved && isMediumTier && cluster.size() >= 2
+                    && pairedOvermatchAchieved;
             int maxSelectable = swarmEligible ? Math.min(2, cluster.size()) : cluster.size();
             boolean isBatchSelectable = cluster.size() > 1;
             swarmApplied = swarmApplied || swarmEligible;

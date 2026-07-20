@@ -15,6 +15,8 @@ import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 @Repository
 public class FleetStatusCacheRepository {
@@ -66,10 +68,22 @@ public class FleetStatusCacheRepository {
         if (keys.isEmpty()) {
             return List.of();
         }
+        Set<String> shadowLockedAssetIds = scanShadowLockedAssetIds();
         return keys.stream()
                 .map(key -> telemetryRedisTemplate.opsForValue().get(key))
-                .filter(telemetry -> telemetry != null && telemetry.status() == AssetStatus.FREE)
+                .filter(telemetry -> telemetry != null
+                        && telemetry.status() == AssetStatus.FREE
+                        && !shadowLockedAssetIds.contains(telemetry.assetId()))
                 .toList();
+    }
+
+    // A shadow-locked asset was already committed to a top-ranked recommendation
+    // within the last 30s; it must not be handed out again until the lock expires,
+    // otherwise the same asset could be double-tasked against two targets at once.
+    private Set<String> scanShadowLockedAssetIds() {
+        return scanKeys(SHADOW_LOCK_KEY_PREFIX + "*").stream()
+                .map(key -> key.substring(SHADOW_LOCK_KEY_PREFIX.length()))
+                .collect(Collectors.toSet());
     }
 
     // Uses SCAN rather than KEYS: KEYS blocks the whole Redis instance while it

@@ -81,6 +81,31 @@ Database and Redis connection details can be overridden via environment
 variables (`DB_URL`, `DB_USERNAME`, `DB_PASSWORD`, `REDIS_HOST`,
 `REDIS_PORT`) — see [application.yml](src/main/resources/application.yml).
 
+### Authentication
+
+Every `/api/v1/**` endpoint except `/api/v1/auth/login` requires a JWT
+Bearer token. Log in as the seeded GCS operator to get one:
+
+```bash
+curl -s -X POST http://localhost:8080/api/v1/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"username": "operator", "password": "changeme"}'
+```
+
+Then pass the returned `accessToken` on every subsequent call:
+
+```bash
+curl -s -X POST http://localhost:8080/api/v1/telemetry/heartbeat \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{ ... }'
+```
+
+The operator credentials and JWT signing secret are dev-only defaults —
+override them via `OPERATOR_USERNAME`, `OPERATOR_PASSWORD`, and `JWT_SECRET`
+in any shared or deployed environment. There is no user-management
+subsystem: this is a single seeded account, not an identity provider.
+
 ### API Documentation
 
 Once running, Swagger UI is available at:
@@ -97,10 +122,11 @@ http://localhost:8080/swagger-ui.html
 
 ## API Endpoints
 
-| Method | Path                          | Description                                   |
-|--------|--------------------------------|-----------------------------------------------|
-| POST   | `/api/v1/recommendations/calculate` | Submit target intake data, receive a ranked recommendation payload |
-| POST   | `/api/v1/telemetry/heartbeat`       | Ingest a telemetry heartbeat for an asset      |
+| Method | Path                          | Auth required | Description                                   |
+|--------|--------------------------------|:---:|-----------------------------------------------|
+| POST   | `/api/v1/auth/login`                | No  | Exchange operator credentials for a JWT       |
+| POST   | `/api/v1/recommendations/calculate` | Yes | Submit target intake data, receive a ranked recommendation payload |
+| POST   | `/api/v1/telemetry/heartbeat`       | Yes | Ingest a telemetry heartbeat for an asset      |
 
 ## Demo
 
@@ -111,8 +137,9 @@ explained recommendation) with copy-pasteable `curl` commands lives in
 ## Status
 
 This project is under active development as part of an academic capstone.
-It currently has no authentication/authorization layer and is intended for
-local/dev use only — do not deploy it to a public-facing environment as-is.
+It has a minimal JWT authentication layer (a single seeded operator account,
+no user management, no refresh tokens) and is intended for local/dev use
+only — do not deploy it to a public-facing environment as-is.
 
 ## License
 
