@@ -125,7 +125,10 @@ http://localhost:8080/swagger-ui.html
 | Method | Path                          | Auth required | Description                                   |
 |--------|--------------------------------|:---:|-----------------------------------------------|
 | POST   | `/api/v1/auth/login`                | No  | Exchange operator credentials for a JWT       |
-| POST   | `/api/v1/recommendations/calculate` | Yes | Submit target intake data, receive a ranked recommendation payload |
+| POST   | `/api/v1/recommendations/calculate` | Yes | Submit one target intake, receive a ranked recommendation payload |
+| POST   | `/api/v1/recommendations/calculate/batch` | Yes | Submit multiple target intakes in one call; processed in order, with shadow-lock/exclusion applied across the whole batch so two targets can't be handed the same asset |
+| GET    | `/api/v1/recommendations/history/{recommendationId}` | Yes | Fetch a single past recommendation's audit record |
+| GET    | `/api/v1/recommendations/history?targetId=&page=&size=` | Yes | Paginated audit history, optionally filtered by `targetId` |
 | POST   | `/api/v1/telemetry/heartbeat`       | Yes | Ingest a telemetry heartbeat for an asset      |
 
 ## Demo

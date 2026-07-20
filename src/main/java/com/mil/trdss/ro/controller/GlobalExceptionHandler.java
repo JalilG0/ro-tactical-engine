@@ -28,6 +28,13 @@ public class GlobalExceptionHandler {
         return problem;
     }
 
+    @ExceptionHandler(RecommendationNotFoundException.class)
+    public ProblemDetail handleRecommendationNotFound(RecommendationNotFoundException ex) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, ex.getMessage());
+        problem.setTitle("Recommendation Not Found");
+        return problem;
+    }
+
     @ExceptionHandler(AuthenticationException.class)
     public ProblemDetail handleAuthenticationFailure(AuthenticationException ex) {
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.UNAUTHORIZED, "Invalid username or password");

@@ -124,6 +124,32 @@ runs every incoming target through five deterministic stages:
    the top-ranked assets receive a 30-second **Shadow Lock** in Redis so two
    concurrent requests can't be recommended the same asset.
 
+## Batch Intake
+
+`POST /recommendations/calculate/batch` accepts multiple `TargetIntakeDTO`s
+in one call and runs each through the exact same five-stage pipeline, in
+request order. Because each intake's Shadow Lock write lands in Redis
+before the next intake's pool read, a later target in the same batch
+correctly sees earlier targets' top-ranked assets as unavailable — the same
+invariant that protects two concurrent single-item requests also protects
+one multi-target batch. There is no partial-success handling: the first
+rejected intake (stale/duplicate) aborts the whole batch, and any audit
+records already persisted for earlier intakes in that batch are not rolled
+back.
+
+## Audit Query
+
+`RecommendationHistoryRepository` (write-only until now) is exposed
+read-only via `RecommendationHistoryQueryService` and
+`RecommendationHistoryController`:
+- `GET /recommendations/history/{recommendationId}` — a single past
+  recommendation, 404 (`RecommendationNotFoundException`) if unknown.
+- `GET /recommendations/history?targetId=&page=&size=` — paginated,
+  newest-first by default, optionally filtered to one target.
+
+This turns the audit trail from a write-only compliance artifact into
+something an operator or analyst can actually query.
+
 ## Example Scenario
 
 A `TargetIntakeDTO` arrives for a moving target with threat level 6, under
@@ -147,8 +173,10 @@ trade-off, and the overmatch justification in plain language.
 |------------|-------------------|
 | `ExclusionEngineTest` | Each exclusion reason (maintenance, manual override, zero munitions, bingo fuel) fires independently and correctly |
 | `TacticalScoringEngineTest` | Swarm Allocation only reports overmatch when the paired munition power actually exceeds the threat level |
-| `RecommendationServiceTest` | End-to-end orchestration: stale/duplicate rejection, pipeline wiring, audit persistence, shadow-lock application |
-| `RecommendationControllerTest` | HTTP layer — request validation, status codes, error mapping |
+| `RecommendationServiceTest` | End-to-end orchestration: stale/duplicate rejection, pipeline wiring, audit persistence, shadow-lock application, batch delegation and fail-fast on the first rejected intake |
+| `RecommendationControllerTest` | HTTP layer — request validation, status codes, error mapping, batch endpoint |
+| `RecommendationHistoryQueryServiceTest` | Audit lookups by recommendationId (found/not-found) and by targetId, pagination pass-through |
+| `RecommendationHistoryControllerTest` | Audit HTTP layer — 200/404 on single lookup, filtered/unfiltered paginated listing |
 | `AuthControllerTest` | Login endpoint — token issuance on valid credentials, 401 on invalid credentials |
 | `JwtSecurityIntegrationTest` | The real Spring Security filter chain — requests without/with an invalid/with a valid Bearer token |
 | `TargetIntakeDTOValidationTest` | Bean Validation constraints on inbound target intake payloads |

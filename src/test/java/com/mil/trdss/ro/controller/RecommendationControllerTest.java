@@ -1,5 +1,6 @@
 package com.mil.trdss.ro.controller;
 
+import com.mil.trdss.ro.domain.dto.BatchTargetIntakeDTO;
 import com.mil.trdss.ro.domain.dto.TacticalRecommendationDTO;
 import com.mil.trdss.ro.domain.dto.TargetIntakeDTO;
 import com.mil.trdss.ro.domain.dto.TelemetryHeartbeatDTO;
@@ -110,6 +111,32 @@ class RecommendationControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.recommendationId").value("rec-1"))
                 .andExpect(jsonPath("$.targetId").value("target-1"));
+    }
+
+    @Test
+    void rejectsEmptyBatchAsValidationError() throws Exception {
+        mockMvc.perform(post("/api/v1/recommendations/calculate/batch")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new BatchTargetIntakeDTO(List.of()))))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.title").value("Validation Failed"));
+    }
+
+    @Test
+    void returns200WithOneRecommendationPerIntakeInBatch() throws Exception {
+        TacticalRecommendationDTO recommendation1 = new TacticalRecommendationDTO(
+                "rec-1", "target-1", System.currentTimeMillis(), "explanation-1", List.of());
+        TacticalRecommendationDTO recommendation2 = new TacticalRecommendationDTO(
+                "rec-2", "target-2", System.currentTimeMillis(), "explanation-2", List.of());
+        when(recommendationService.calculateRecommendations(any()))
+                .thenReturn(List.of(recommendation1, recommendation2));
+
+        mockMvc.perform(post("/api/v1/recommendations/calculate/batch")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new BatchTargetIntakeDTO(List.of(validIntake())))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].recommendationId").value("rec-1"))
+                .andExpect(jsonPath("$[1].recommendationId").value("rec-2"));
     }
 
     @Test

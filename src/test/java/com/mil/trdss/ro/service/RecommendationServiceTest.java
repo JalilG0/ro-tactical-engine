@@ -26,9 +26,11 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -128,12 +130,61 @@ class RecommendationServiceTest {
     }
 
     @Test
+    void processesBatchSequentiallyAndReturnsOneResultPerIntake() {
+        TargetIntakeDTO intake1 = intakeWithEventId("evt-batch-1");
+        TargetIntakeDTO intake2 = intakeWithEventId("evt-batch-2");
+
+        when(fleetStatusCacheRepository.isIdempotent(anyString())).thenReturn(true);
+        when(fleetStatusCacheRepository.getActiveFreePool()).thenReturn(List.of());
+
+        ExclusionEngine.ExclusionResult exclusionResult = new ExclusionEngine.ExclusionResult(List.of(), List.of());
+        when(exclusionEngine.filterEligibleAssets(any(), any())).thenReturn(exclusionResult);
+
+        TacticalScoringEngine.ScoringOutcome emptyOutcome =
+                new TacticalScoringEngine.ScoringOutcome(List.of(), false, false);
+        when(tacticalScoringEngine.generateRankedGroups(any(), eq(List.of()))).thenReturn(emptyOutcome);
+        when(xaiExplanationGenerator.generate(any(), any(), eq(emptyOutcome))).thenReturn("no assets available");
+
+        List<TacticalRecommendationDTO> results =
+                recommendationService.calculateRecommendations(List.of(intake1, intake2));
+
+        assertThat(results).hasSize(2);
+        assertThat(results.get(0).targetId()).isEqualTo(intake1.target().targetId());
+        assertThat(results.get(1).targetId()).isEqualTo(intake2.target().targetId());
+        verify(recommendationHistoryRepository, times(2)).save(any(RecommendationHistoryEntity.class));
+    }
+
+    @Test
+    void stopsBatchProcessingOnFirstRejectedIntake() {
+        TargetIntakeDTO staleIntake = intakeWithTimestamp(System.currentTimeMillis() - 15_000L);
+        TargetIntakeDTO validIntake = intakeWithEventId("evt-after-stale");
+
+        assertThatThrownBy(() -> recommendationService.calculateRecommendations(List.of(staleIntake, validIntake)))
+                .isInstanceOf(StaleDataException.class);
+
+        verify(fleetStatusCacheRepository, never()).getActiveFreePool();
+    }
+
+    @Test
     void ingestHeartbeatDelegatesToCache() {
         TelemetryHeartbeatDTO telemetry = mock(TelemetryHeartbeatDTO.class);
 
         recommendationService.ingestHeartbeat(telemetry);
 
         verify(fleetStatusCacheRepository).saveTelemetry(telemetry);
+    }
+
+    private TargetIntakeDTO intakeWithEventId(String eventId) {
+        return new TargetIntakeDTO(
+                eventId,
+                System.currentTimeMillis(),
+                new TargetIntakeDTO.TargetInfo(
+                        "target-" + eventId, 5,
+                        new TargetIntakeDTO.Coordinates(39.0, 35.0),
+                        WeatherCondition.CLEAR, TargetMovementStatus.STATIONARY),
+                new TargetIntakeDTO.EwContext(false, List.of()),
+                false
+        );
     }
 
     private TargetIntakeDTO intakeWithTimestamp(long timestamp) {

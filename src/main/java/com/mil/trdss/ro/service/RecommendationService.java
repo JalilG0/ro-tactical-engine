@@ -70,6 +70,12 @@ public class RecommendationService {
         return recommendation;
     }
 
+    // Sequential by design: each intake's shadow-lock write is visible to the next intake's
+    // pool read, so two targets in the same batch can't be recommended the same asset.
+    public List<TacticalRecommendationDTO> calculateRecommendations(List<TargetIntakeDTO> intakes) {
+        return intakes.stream().map(this::calculateRecommendation).toList();
+    }
+
     public void ingestHeartbeat(TelemetryHeartbeatDTO telemetry) {
         fleetStatusCacheRepository.saveTelemetry(telemetry);
     }

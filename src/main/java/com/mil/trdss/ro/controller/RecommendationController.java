@@ -1,5 +1,6 @@
 package com.mil.trdss.ro.controller;
 
+import com.mil.trdss.ro.domain.dto.BatchTargetIntakeDTO;
 import com.mil.trdss.ro.domain.dto.TacticalRecommendationDTO;
 import com.mil.trdss.ro.domain.dto.TargetIntakeDTO;
 import com.mil.trdss.ro.domain.dto.TelemetryHeartbeatDTO;
@@ -10,6 +11,8 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/v1")
@@ -24,6 +27,16 @@ public class RecommendationController {
     @PostMapping("/recommendations/calculate")
     public ResponseEntity<TacticalRecommendationDTO> calculate(@Valid @RequestBody TargetIntakeDTO intakeDTO) {
         return ResponseEntity.ok(recommendationService.calculateRecommendation(intakeDTO));
+    }
+
+    // Processes intakes in request order, applying the same shadow-lock/exclusion rules
+    // sequentially, so a later target in the same batch can't be handed an asset already
+    // committed to an earlier one. Fails the whole batch on the first rejected item — no
+    // partial-success reporting or rollback of already-persisted audit records.
+    @PostMapping("/recommendations/calculate/batch")
+    public ResponseEntity<List<TacticalRecommendationDTO>> calculateBatch(
+            @Valid @RequestBody BatchTargetIntakeDTO batch) {
+        return ResponseEntity.ok(recommendationService.calculateRecommendations(batch.intakes()));
     }
 
     @PostMapping("/telemetry/heartbeat")
