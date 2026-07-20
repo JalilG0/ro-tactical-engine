@@ -6,6 +6,7 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.Index;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.Table;
 import lombok.AllArgsConstructor;
@@ -19,8 +20,17 @@ import tools.jackson.databind.JsonNode;
 import java.time.Instant;
 import java.util.UUID;
 
+// recommendation_id already gets a unique index from its unique=true column constraint.
+// target_id and created_at are indexed here because RecommendationHistoryQueryService
+// queries and sorts by both (paginated "by target" and "most recent" lookups).
 @Entity
-@Table(name = "recommendation_history")
+@Table(
+        name = "recommendation_history",
+        indexes = {
+                @Index(name = "idx_recommendation_history_target_id_created_at", columnList = "target_id, created_at DESC"),
+                @Index(name = "idx_recommendation_history_created_at", columnList = "created_at DESC")
+        }
+)
 @Getter
 @Builder
 @NoArgsConstructor

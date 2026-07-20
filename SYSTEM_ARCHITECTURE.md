@@ -148,7 +148,10 @@ read-only via `RecommendationHistoryQueryService` and
   newest-first by default, optionally filtered to one target.
 
 This turns the audit trail from a write-only compliance artifact into
-something an operator or analyst can actually query.
+something an operator or analyst can actually query. `target_id` and
+`created_at` are indexed (`RecommendationHistoryEntity`'s `@Table(indexes = ...)`)
+since both query paths above filter or sort on them — without an index,
+either would degrade to a full table scan as the audit trail grows.
 
 ## Example Scenario
 
@@ -165,14 +168,20 @@ active EW jamming. Three eligible assets survive exclusion:
 moving target, but its raw overmatch bonus (power 8 > threat 6) dominates.
 The engine returns it as the top recommendation, applies a 30s shadow lock
 to it, and the XAI explanation states the EW reroute, the movement-guidance
-trade-off, and the overmatch justification in plain language.
+trade-off, and the overmatch justification in plain language. The same five
+numbers in the table's A-102 row are what `topAssetScoreBreakdown` returns
+as structured JSON on `TacticalRecommendationDTO` — the machine-readable
+counterpart to the natural-language explanation, for callers that want to
+consume the "why" without parsing a sentence. Note that only `DENSE_FOG`
+currently has a weather effect; `HEAVY_RAIN` and `STORM` are accepted values
+but don't yet adjust scoring.
 
 ## Test Coverage
 
 | Test class | What it verifies |
 |------------|-------------------|
 | `ExclusionEngineTest` | Each exclusion reason (maintenance, manual override, zero munitions, bingo fuel) fires independently and correctly |
-| `TacticalScoringEngineTest` | Swarm Allocation only reports overmatch when the paired munition power actually exceeds the threat level |
+| `TacticalScoringEngineTest` | Swarm Allocation paired-overmatch edge case; every `MunitionType` × `WeatherCondition` × `TargetMovementStatus` combination produces the documented score breakdown; EW penalty on/off |
 | `RecommendationServiceTest` | End-to-end orchestration: stale/duplicate rejection, pipeline wiring, audit persistence, shadow-lock application, batch delegation and fail-fast on the first rejected intake |
 | `RecommendationControllerTest` | HTTP layer — request validation, status codes, error mapping, batch endpoint |
 | `RecommendationHistoryQueryServiceTest` | Audit lookups by recommendationId (found/not-found) and by targetId, pagination pass-through |

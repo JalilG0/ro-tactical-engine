@@ -102,7 +102,7 @@ class RecommendationControllerTest {
     @Test
     void returns200WithRecommendationOnSuccess() throws Exception {
         TacticalRecommendationDTO recommendation = new TacticalRecommendationDTO(
-                "rec-1", "target-1", System.currentTimeMillis(), "explanation", List.of());
+                "rec-1", "target-1", System.currentTimeMillis(), "explanation", null, List.of());
         when(recommendationService.calculateRecommendation(any())).thenReturn(recommendation);
 
         mockMvc.perform(post("/api/v1/recommendations/calculate")
@@ -125,9 +125,9 @@ class RecommendationControllerTest {
     @Test
     void returns200WithOneRecommendationPerIntakeInBatch() throws Exception {
         TacticalRecommendationDTO recommendation1 = new TacticalRecommendationDTO(
-                "rec-1", "target-1", System.currentTimeMillis(), "explanation-1", List.of());
+                "rec-1", "target-1", System.currentTimeMillis(), "explanation-1", null, List.of());
         TacticalRecommendationDTO recommendation2 = new TacticalRecommendationDTO(
-                "rec-2", "target-2", System.currentTimeMillis(), "explanation-2", List.of());
+                "rec-2", "target-2", System.currentTimeMillis(), "explanation-2", null, List.of());
         when(recommendationService.calculateRecommendations(any()))
                 .thenReturn(List.of(recommendation1, recommendation2));
 

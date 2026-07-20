@@ -145,6 +145,17 @@ Given the four heartbeats and the target intake above, the engine returns:
   "targetId": "TARGET-ALPHA",
   "timestamp": 1752739200000,
   "xaiExplanation": "Hedef TARGET-ALPHA (Tehdit Seviyesi: 6/10) için taktik değerlendirme tamamlandı. Aktif Elektronik Harp (EW) tehdidi tespit edildi; rota, tespit edilen karıştırma (jammer) bölgesini bypass edecek şekilde uzatıldı. Hedefin hareketli (MOVING) olması sebebiyle anlık takip yapabilen lazer güdümlü mühimmatlar (MAM-L, MAM-C, BOZOK) önceliklendirilmiş; sabit koordinata taarruz eden GPS/INS güdümlü sistemlere (TOLUN, SOM) düşük öncelik verilmiştir. En yüksek öncelikli öneri: TOLUN modeli (1 adet müsait varlık). Overmatch Doktrini gereği, seçilen mühimmat gücü hedef tehdit seviyesini tek başına aşmaktadır. 1 varlık aşağıdaki nedenlerle değerlendirme dışı bırakıldı: A-104 (Bakım Gerekiyor).",
+  "topAssetScoreBreakdown": {
+    "assetId": "A-102",
+    "munitionType": "TOLUN",
+    "basePower": 8,
+    "baseScore": 80,
+    "overmatchBonus": 50,
+    "weatherAdjustment": 0,
+    "movementAdjustment": -20,
+    "ewPenalty": -5,
+    "totalScore": 105
+  },
   "rankedModelGroups": [
     {
       "modelName": "TOLUN",
@@ -213,7 +224,9 @@ The response ranks three model groups. Walk through it in this order:
    isolation — explain the scoring: base score 80 (power 8 × 10) + 50
    overmatch bonus (8 > threat 6) − 20 moving-target penalty (GPS/INS
    commits to a fixed point, can't re-track a moving target) − 5 EW-reroute
-   penalty = **105**.
+   penalty = **105**. The `topAssetScoreBreakdown` field gives these exact
+   numbers as structured JSON — no need to parse the Turkish sentence to get
+   the components programmatically.
 3. **`BOZOK` (A-101) is second at 80** — no overmatch (power 6 does not
    exceed threat 6), but it gets a +25 bonus for being laser-guided against
    a moving target (can re-track in flight) minus the 5-point EW penalty.

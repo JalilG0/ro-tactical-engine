@@ -61,6 +61,7 @@ public class RecommendationService {
                 intakeDTO.target().targetId(),
                 System.currentTimeMillis(),
                 xaiExplanation,
+                scoringOutcome.topAssetScoreBreakdown(),
                 scoringOutcome.rankedModelGroups()
         );
 

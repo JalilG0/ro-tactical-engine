@@ -38,11 +38,11 @@ public class TacticalScoringEngine {
             TargetIntakeDTO targetIntake, List<TelemetryHeartbeatDTO> eligibleAssets) {
 
         if (eligibleAssets.isEmpty()) {
-            return new ScoringOutcome(List.of(), false, false);
+            return new ScoringOutcome(List.of(), false, false, null);
         }
 
         List<ScoredAsset> scoredAssets = eligibleAssets.stream()
-                .map(asset -> new ScoredAsset(asset, scoreAsset(asset, targetIntake)))
+                .map(asset -> new ScoredAsset(asset, computeScoreBreakdown(asset, targetIntake)))
                 .sorted(TIE_BREAK_COMPARATOR)
                 .toList();
 
@@ -62,49 +62,54 @@ public class TacticalScoringEngine {
                 .toList();
 
         ModelGroupResult topGroup = limited.get(0);
-        return new ScoringOutcome(rankedGroups, topGroup.overmatchAchieved(), topGroup.swarmApplied());
+        TacticalRecommendationDTO.ScoreBreakdown topAssetBreakdown = scoredAssets.get(0).breakdown();
+        return new ScoringOutcome(rankedGroups, topGroup.overmatchAchieved(), topGroup.swarmApplied(), topAssetBreakdown);
     }
 
-    private int scoreAsset(TelemetryHeartbeatDTO asset, TargetIntakeDTO targetIntake) {
+    private TacticalRecommendationDTO.ScoreBreakdown computeScoreBreakdown(
+            TelemetryHeartbeatDTO asset, TargetIntakeDTO targetIntake) {
         MunitionType currentType = asset.munition().currentType();
         int power = munitionPower(currentType);
         int threatLevel = targetIntake.target().threatLevel();
 
-        int score = power * 10;
+        int baseScore = power * 10;
 
         // Overmatch Doctrine: munition power must strictly exceed the target's threat level.
-        if (power > threatLevel) {
-            score += OVERMATCH_BONUS;
-        }
+        int overmatchBonus = power > threatLevel ? OVERMATCH_BONUS : 0;
 
+        int weatherAdjustment = 0;
         WeatherCondition weather = targetIntake.target().weatherContext();
         if (weather == WeatherCondition.DENSE_FOG) {
             if (isLaserGuided(currentType)) {
-                score -= FOG_LASER_PENALTY;
+                weatherAdjustment = -FOG_LASER_PENALTY;
             } else if (isGpsInsGuided(currentType)) {
-                score += FOG_GPS_INS_BONUS;
+                weatherAdjustment = FOG_GPS_INS_BONUS;
             }
         }
 
+        int movementAdjustment = 0;
         TargetMovementStatus movementStatus = targetIntake.target().movementStatus();
         if (movementStatus == TargetMovementStatus.MOVING) {
             // Moving Target Doctrine: laser designation (FLIR/laser) can actively re-track a moving
             // target in flight, while GPS/INS-only munitions commit to a fixed coordinate at launch.
             if (isLaserGuided(currentType)) {
-                score += MOVING_TARGET_LASER_BONUS;
+                movementAdjustment = MOVING_TARGET_LASER_BONUS;
             } else if (isGpsInsGuided(currentType)) {
-                score -= MOVING_TARGET_GPS_INS_PENALTY;
+                movementAdjustment = -MOVING_TARGET_GPS_INS_PENALTY;
             }
         } else if (isGpsInsGuided(currentType)) {
-            score += STATIONARY_TARGET_GPS_INS_BONUS;
+            movementAdjustment = STATIONARY_TARGET_GPS_INS_BONUS;
         }
 
-        if (targetIntake.ewContext().activeEwThreat() && !targetIntake.ewContext().jammerPolygon().isEmpty()) {
-            // Active jammer polygon forces a detour waypoint, penalizing every asset uniformly.
-            score -= EW_REROUTE_PENALTY;
-        }
+        // Active jammer polygon forces a detour waypoint, penalizing every asset uniformly.
+        int ewPenalty = (targetIntake.ewContext().activeEwThreat() && !targetIntake.ewContext().jammerPolygon().isEmpty())
+                ? -EW_REROUTE_PENALTY : 0;
 
-        return score;
+        int totalScore = baseScore + overmatchBonus + weatherAdjustment + movementAdjustment + ewPenalty;
+
+        return new TacticalRecommendationDTO.ScoreBreakdown(
+                asset.assetId(), currentType, power, baseScore,
+                overmatchBonus, weatherAdjustment, movementAdjustment, ewPenalty, totalScore);
     }
 
     private ModelGroupResult buildModelGroup(
@@ -113,7 +118,7 @@ public class TacticalScoringEngine {
         boolean tieBreakerApplied = hasScoreTie(scoredAssets);
 
         boolean singleAssetOvermatchAchieved = scoredAssets.stream()
-                .anyMatch(sa -> munitionPower(sa.asset().munition().currentType()) > targetIntake.target().threatLevel());
+                .anyMatch(sa -> sa.breakdown().overmatchBonus() > 0);
         MunitionType representativeType = scoredAssets.get(0).asset().munition().currentType();
         boolean isMediumTier = isMediumTier(representativeType);
         // Swarm Allocation only pays off if two of these assets combined actually
@@ -196,7 +201,10 @@ public class TacticalScoringEngine {
         return type == MunitionType.TOLUN || type == MunitionType.SOM_CRUISE_MISSILE;
     }
 
-    private record ScoredAsset(TelemetryHeartbeatDTO asset, int score) {
+    private record ScoredAsset(TelemetryHeartbeatDTO asset, TacticalRecommendationDTO.ScoreBreakdown breakdown) {
+        int score() {
+            return breakdown.totalScore();
+        }
     }
 
     private record ModelGroupResult(
@@ -208,6 +216,7 @@ public class TacticalScoringEngine {
     public record ScoringOutcome(
             List<TacticalRecommendationDTO.RankedModelGroup> rankedModelGroups,
             boolean topGroupOvermatchAchieved,
-            boolean topGroupSwarmApplied) {
+            boolean topGroupSwarmApplied,
+            TacticalRecommendationDTO.ScoreBreakdown topAssetScoreBreakdown) {
     }
 }

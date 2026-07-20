@@ -6,6 +6,7 @@ import com.mil.trdss.ro.domain.dto.TacticalRecommendationDTO;
 import com.mil.trdss.ro.domain.dto.TargetIntakeDTO;
 import com.mil.trdss.ro.domain.dto.TelemetryHeartbeatDTO;
 import com.mil.trdss.ro.domain.enums.AssetStatus;
+import com.mil.trdss.ro.domain.enums.MunitionType;
 import com.mil.trdss.ro.domain.enums.TargetMovementStatus;
 import com.mil.trdss.ro.domain.enums.WeatherCondition;
 import com.mil.trdss.ro.engine.ExclusionEngine;
@@ -94,8 +95,10 @@ class RecommendationServiceTest {
                         2,
                         true)),
                 false);
+        TacticalRecommendationDTO.ScoreBreakdown topAssetBreakdown = new TacticalRecommendationDTO.ScoreBreakdown(
+                "asset-1", MunitionType.TOLUN, 8, 80, 50, 0, -20, 0, 110);
         TacticalScoringEngine.ScoringOutcome scoringOutcome =
-                new TacticalScoringEngine.ScoringOutcome(List.of(topGroup), true, false);
+                new TacticalScoringEngine.ScoringOutcome(List.of(topGroup), true, false, topAssetBreakdown);
         when(tacticalScoringEngine.generateRankedGroups(intake, List.of())).thenReturn(scoringOutcome);
         when(xaiExplanationGenerator.generate(eq(intake), any(), eq(scoringOutcome))).thenReturn("explanation");
 
@@ -104,6 +107,7 @@ class RecommendationServiceTest {
         assertThat(result.targetId()).isEqualTo(intake.target().targetId());
         assertThat(result.xaiExplanation()).isEqualTo("explanation");
         assertThat(result.rankedModelGroups()).containsExactly(topGroup);
+        assertThat(result.topAssetScoreBreakdown()).isEqualTo(topAssetBreakdown);
 
         verify(recommendationHistoryRepository).save(any(RecommendationHistoryEntity.class));
         verify(fleetStatusCacheRepository).applyShadowLock("asset-1");
@@ -120,7 +124,7 @@ class RecommendationServiceTest {
         when(exclusionEngine.filterEligibleAssets(any(), eq(intake))).thenReturn(exclusionResult);
 
         TacticalScoringEngine.ScoringOutcome emptyOutcome =
-                new TacticalScoringEngine.ScoringOutcome(List.of(), false, false);
+                new TacticalScoringEngine.ScoringOutcome(List.of(), false, false, null);
         when(tacticalScoringEngine.generateRankedGroups(intake, List.of())).thenReturn(emptyOutcome);
         when(xaiExplanationGenerator.generate(eq(intake), any(), eq(emptyOutcome))).thenReturn("no assets available");
 
@@ -141,7 +145,7 @@ class RecommendationServiceTest {
         when(exclusionEngine.filterEligibleAssets(any(), any())).thenReturn(exclusionResult);
 
         TacticalScoringEngine.ScoringOutcome emptyOutcome =
-                new TacticalScoringEngine.ScoringOutcome(List.of(), false, false);
+                new TacticalScoringEngine.ScoringOutcome(List.of(), false, false, null);
         when(tacticalScoringEngine.generateRankedGroups(any(), eq(List.of()))).thenReturn(emptyOutcome);
         when(xaiExplanationGenerator.generate(any(), any(), eq(emptyOutcome))).thenReturn("no assets available");
 
